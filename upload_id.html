@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上傳卡片圖片</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f9;
+        }
+
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        .switch {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .switch button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #007bff;
+        }
+
+        .switch button.active {
+            background: #0056b3;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        label {
+            cursor: pointer;
+            color: #007bff;
+            text-decoration: underline;
+        }
+
+        #preview {
+            margin-top: 20px;
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .error {
+            color: #d9534f;
+            margin-top: 10px;
+        }
+
+        #camera {
+            display: none;
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        #camera-container {
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>上傳卡片圖片</h1>
+        <div class="switch">
+            <button id="switch-to-upload" class="active">上傳圖片</button>
+            <button id="switch-to-camera">使用相機</button>
+        </div>
+        <form id="upload-form">
+            <label for="id-card">按這裡上傳圖片</label>
+            <input type="file" id="id-card" accept="image/*">
+        </form>
+        <div id="camera-container">
+            <video id="camera" autoplay></video>
+            <button id="camera-capture">拍攝</button>
+        </div>
+        <canvas id="snapshot" style="display: none;"></canvas>
+        <img id="preview" alt="ID Preview" style="display: none;">
+        <p class="error" id="error" style="display: none;">請上傳正確的圖片檔</p>
+    </div>
+
+    <script>
+        const switchToUploadButton = document.getElementById('switch-to-upload');
+        const switchToCameraButton = document.getElementById('switch-to-camera');
+        const uploadForm = document.getElementById('upload-form');
+        const fileInput = document.getElementById('id-card');
+        const preview = document.getElementById('preview');
+        const error = document.getElementById('error');
+        const camera = document.getElementById('camera');
+        const cameraContainer = document.getElementById('camera-container');
+        const cameraCaptureButton = document.getElementById('camera-capture');
+        const snapshotCanvas = document.getElementById('snapshot');
+        const snapshotContext = snapshotCanvas.getContext('2d');
+        let cameraStream = null;
+
+        function activateButton(button) {
+            switchToUploadButton.classList.remove('active');
+            switchToCameraButton.classList.remove('active');
+            button.classList.add('active');
+        }
+
+        switchToUploadButton.addEventListener('click', () => {
+            activateButton(switchToUploadButton);
+            uploadForm.style.display = 'block';
+            cameraContainer.style.display = 'none';
+            preview.style.display = 'none';
+
+            if (cameraStream) {
+                const tracks = cameraStream.getTracks();
+                tracks.forEach((track) => track.stop());
+                cameraStream = null;
+            }
+        });
+
+        switchToCameraButton.addEventListener('click', () => {
+            activateButton(switchToCameraButton);
+            uploadForm.style.display = 'none';
+            cameraContainer.style.display = 'block';
+            preview.style.display = 'none';
+
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: {} })
+                    .then((stream) => {
+                        camera.style.display = 'block';
+                        camera.srcObject = stream;
+                        cameraStream = stream;
+                    })
+                    .catch((err) => {
+                        console.log(err);
+                        error.style.display = 'block';
+                        error.textContent = '無法存取相機';
+                    });
+            } else {
+                error.style.display = 'block';
+                error.textContent = '此裝置不支援相機';
+            }
+        });
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+
+            if (file) {
+                const fileType = file.type;
+                if (!fileType.startsWith('image/')) {
+                    preview.style.display = 'none';
+                    error.style.display = 'block';
+                    error.textContent = '請上傳正確的圖片檔';
+                    return;
+                }
+
+                error.style.display = 'none';
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    // resize the image to width=400px
+                    const image = new Image();
+                    image.src = e.target.result;
+
+                    image.onload = () => {
+                        const tempcanvas = document.createElement('canvas');
+                        const ctx = tempcanvas.getContext('2d');
+                        tempcanvas.width = 720;
+                        tempcanvas.height = (720 / image.width) * image.height;
+                        ctx.drawImage(image, 0, 0, tempcanvas.width, tempcanvas.height);
+                        sessionStorage.setItem('uploadedImage', tempcanvas.toDataURL('image/jpeg'));
+                    };
+                    window.location.href = 'edit_photo.html';
+                };
+
+                reader.readAsDataURL(file);
+            }
+        });
+
+        cameraCaptureButton.addEventListener('click', () => {
+            snapshotCanvas.width = camera.videoWidth;
+            snapshotCanvas.height = camera.videoHeight;
+            snapshotContext.drawImage(camera, 0, 0, camera.videoWidth, camera.videoHeight);
+
+            const imageDataUrl = snapshotCanvas.toDataURL('image/png');
+            sessionStorage.setItem('uploadedImage', imageDataUrl);
+            window.location.href = 'edit_photo.html';
+
+            // Stop the camera after taking the snapshot
+            const stream = camera.srcObject;
+            const tracks = stream.getTracks();
+
+            tracks.forEach((track) => track.stop());
+            camera.style.display = 'none';
+            cameraContainer.style.display = 'none';
+        });
+    </script>
+</body>
+</html>

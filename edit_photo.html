@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>裁切卡片圖片</title>
+    <script type="text/javascript" src="js/perspective.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f9;
+        }
+
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        #canvas-container {
+            position: relative;
+            margin-top: 20px;
+        }
+
+        canvas {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            cursor: crosshair;
+        }
+
+        .point {
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+
+        #point1 {
+            background: blueviolet;
+        }
+
+        #point3 {
+            background: rgb(30, 97, 223);
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background: #007bff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            padding-top: 100px; /* Location of the box */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgb(0,0,0); /* Fallback color */
+            background-color: rgba(0,0,0,0.9); /* Black w/ opacity */
+        }
+
+            /* Modal Content (Image) */
+        .modal-content {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+        }
+
+            /* Caption of Modal Image (Image Text) - Same Width as the Image */
+        #caption {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            text-align: center;
+            color: #ccc;
+            padding: 10px 0;
+            height: 150px;
+        }
+
+            /* Add Animation - Zoom in the Modal */
+        .modal-content, #caption {
+            animation-name: zoom;
+            animation-duration: 0.6s;
+        }
+
+        @keyframes zoom {
+            from {transform:scale(0)}
+            to {transform:scale(1)}
+        }
+
+            /* The Close Button */
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+            /* 100% Image Width on Smaller Screens */
+        @media only screen and (max-width: 700px){
+            .modal-content {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>裁切卡片圖片</h1>
+        <p>將點拖曳至卡片四個角</p>
+        <div>
+            <div style="width: 10px; height: 10px; display:inline-block; background-color: blueviolet;"></div>
+            <span>左上角</span>
+        </div>
+        <div>
+            <div style="width: 10px; height: 10px; display:inline-block; background-color: rgb(30, 97, 223);"></div>
+            <span>右下角</span>
+        </div>
+        <div id="canvas-container">
+            <canvas id="imageCanvas"></canvas>
+            <div class="point" id="point1"></div>
+            <div class="point" id="point2"></div>
+            <div class="point" id="point3"></div>
+            <div class="point" id="point4"></div>
+        </div>
+        <button id="cropButton">裁切圖片</button>
+    </div>
+    <div id="output-modal" class="modal">
+
+        <!-- The Close Button -->
+        <span class="close">&times;</span>
+      
+        <!-- Modal Content (The Image) -->
+        <img class="modal-content" id="image">
+      
+        <!-- Modal Caption (Image Text) -->
+        <div id="caption">按右鍵(或長按)可複製圖片</div>
+      </div>
+
+    <script>
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const points = [
+            document.getElementById('point1'),
+            document.getElementById('point2'),
+            document.getElementById('point3'),
+            document.getElementById('point4')
+        ];
+        const cropButton = document.getElementById('cropButton');
+
+        let image = new Image();
+        const imageData = sessionStorage.getItem('uploadedImage');
+        if (!imageData) {
+            alert('未找到圖片，將重新導向上傳頁面');
+            window.location.href = 'upload_id.html';
+        }
+
+        image.onload = () => {
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image, 0, 0);
+
+            const defaultPoints = [
+                { x: 50, y: 50 },
+                { x: image.width - 50, y: 50 },
+                { x: image.width - 50, y: image.height - 50 },
+                { x: 50, y: image.height - 50 }                
+            ];
+
+            points.forEach((point, index) => {
+                const { x, y } = defaultPoints[index];
+                point.style.left = `${x}px`;
+                point.style.top = `${y}px`;
+                point.dataset.x = x;
+                point.dataset.y = y;
+
+                point.addEventListener('mousedown', startDrag);
+            });
+
+            drawOverlay();
+        };
+
+        image.src = imageData;
+
+        function startDrag(e) {
+            const point = e.target;
+            const onMouseMove = (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = Math.min(Math.max(event.clientX - rect.left, 0), canvas.width);
+                const y = Math.min(Math.max(event.clientY - rect.top, 0), canvas.height);
+
+                point.style.left = `${x}px`;
+                point.style.top = `${y}px`;
+                point.dataset.x = x;
+                point.dataset.y = y;
+
+                drawOverlay();
+            };
+
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        }
+
+        function drawOverlay() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0);
+
+            const coordinates = points.map(point => ({
+                x: parseFloat(point.dataset.x),
+                y: parseFloat(point.dataset.y)
+            }));
+
+            // Draw gray overlay
+            ctx.beginPath();
+            ctx.moveTo(coordinates[0].x, coordinates[0].y);
+            for (let i = 1; i < coordinates.length; i++) {
+                ctx.lineTo(coordinates[i].x, coordinates[i].y);
+            }
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(128, 128, 128, 0.3)';
+            ctx.fill();
+
+            // Draw lines
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(coordinates[0].x, coordinates[0].y);
+            for (let i = 1; i < coordinates.length; i++) {
+                ctx.lineTo(coordinates[i].x, coordinates[i].y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+        
+        var modal = document.getElementById("output-modal");
+        var modalImg = document.getElementById("image");
+        var captionText = document.getElementById("caption");
+
+        cropButton.addEventListener('click', () => {
+            const coordinates = points.map(point => ([
+                parseFloat(point.dataset.x), parseFloat(point.dataset.y)
+            ]));
+            var correctedCanvas = applyPerspectiveCorrection(image, coordinates, 702, 416);
+            modal.style.display = "block";
+            modalImg.src = correctedCanvas.toDataURL();
+        });
+        var span = document.getElementsByClassName("close")[0];
+        span.addEventListener('click', () => {
+            modal.style.display = "none";
+        });
+    </script>
+    
+</body>
+</html>
